@@ -168,14 +168,20 @@ class SlidingPuzzle {
 
     async initializePuzzleData(puzzleNumber) {
         try {
-            // Debug log
-            console.log('Starting initialization with puzzle number:', puzzleNumber);
-            console.log('Current session state:', {
-                playerName: sessionStorage.getItem('playerName'),
-                playerId: sessionStorage.getItem('playerId'),
-                adminStarted: sessionStorage.getItem('adminStarted'),
-                gameStarted: sessionStorage.getItem('gameStarted')
+            // Get puzzle number from return URL first
+            const savedPuzzleUrl = sessionStorage.getItem('puzzleReturnUrl');
+            const correctPuzzleNumber = this.getPuzzleNumberFromUrl(savedPuzzleUrl) || puzzleNumber;
+
+            console.log('Initializing puzzle with data:', {
+                savedPuzzleUrl,
+                urlPuzzleNumber: this.getPuzzleNumberFromUrl(savedPuzzleUrl),
+                providedPuzzleNumber: puzzleNumber,
+                finalPuzzleNumber: correctPuzzleNumber
             });
+
+            // Store the correct puzzle number immediately
+            this.puzzleNumber = correctPuzzleNumber;
+            sessionStorage.setItem('currentPuzzleNumber', correctPuzzleNumber);
 
             const gameState = await this.getCurrentGameState();
             console.log('Current game state:', gameState);
@@ -184,19 +190,23 @@ class SlidingPuzzle {
             const hasRegistration = sessionStorage.getItem('playerName') && sessionStorage.getItem('playerId');
 
             // Ensure puzzle data exists in Firebase before proceeding
-            const puzzleRef = ref(realtimeDb, `puzzles/puzzle${puzzleNumber}`);
+            const puzzleRef = ref(realtimeDb, `puzzles/puzzle${correctPuzzleNumber}`);
             const puzzleSnapshot = await get(puzzleRef);
             const puzzleExists = puzzleSnapshot.exists();
 
             if (!puzzleExists) {
-                console.error('Puzzle does not exist:', puzzleNumber);
-                throw new Error(`Puzzle ${puzzleNumber} not found`);
+                console.error('Puzzle does not exist:', correctPuzzleNumber);
+                throw new Error(`Puzzle ${correctPuzzleNumber} not found`);
             }
+
+            // Store the correct puzzle number
+            this.puzzleNumber = correctPuzzleNumber;
+            sessionStorage.setItem('currentPuzzleNumber', correctPuzzleNumber);
 
             if (adminStarted) {
                 console.log('Admin started game detected');
                 try {
-                    await this.loadPuzzle(puzzleNumber);
+                    await this.loadPuzzle(correctPuzzleNumber);
                 } catch (error) {
                     console.error('Failed to load puzzle:', error);
                     alert('Error loading puzzle. Please try again.');
@@ -222,7 +232,7 @@ class SlidingPuzzle {
             }
 
             // Load puzzle if all checks pass
-            await this.loadPuzzle(puzzleNumber);
+            await this.loadPuzzle(correctPuzzleNumber);
 
         } catch (error) {
             console.error('Detailed initialization error:', {
@@ -380,10 +390,13 @@ class SlidingPuzzle {
             });
     }
 
-    getPuzzleNumberFromUrl() {
-        // Extract puzzle number from URL (e.g., puzzle1.html -> 1)
-        const match = window.location.pathname.match(/puzzle(\d+)\.html/);
-        return match ? parseInt(match[1]) : null;
+    getPuzzleNumberFromUrl(url) {
+        // Clean and normalize the URL
+        url = url || window.location.href;
+        
+        // Match puzzle number from full URL or pathname
+        const puzzleMatch = url.match(/puzzle(\d+)(\.html)?$/);
+        return puzzleMatch ? parseInt(puzzleMatch[1]) : null;
     }
 
     isValidAccess() {
@@ -539,20 +552,48 @@ class SlidingPuzzle {
     async loadImage() {
         return new Promise((resolve, reject) => {
             const img = new Image();
-            let imagePath = '';
 
-            // Get puzzle number either from URL or stored data
-            const puzzleNumber = this.getPuzzleNumberFromUrl() || 
-                               sessionStorage.getItem('puzzleNumber');
+            // Get puzzle number in order of priority
+            let puzzleNumber = null;
+            
+            // 1. Try return URL first (handle both full URLs and local paths)
+            const returnUrl = sessionStorage.getItem('puzzleReturnUrl');
+            if (returnUrl) {
+                puzzleNumber = this.getPuzzleNumberFromUrl(returnUrl);
+                if (puzzleNumber) {
+                    console.log('Using puzzle number from return URL:', puzzleNumber);
+                }
+            }
+            
+            // 2. Try current URL if no return URL match
+            if (!puzzleNumber) {
+                puzzleNumber = this.getPuzzleNumberFromUrl(window.location.href);
+                if (puzzleNumber) {
+                    console.log('Using puzzle number from current URL:', puzzleNumber);
+                }
+            }
+            
+            // 3. Try session storage if still no match
+            if (!puzzleNumber) {
+                const storedNumber = sessionStorage.getItem('currentPuzzleNumber');
+                if (storedNumber) {
+                    puzzleNumber = parseInt(storedNumber);
+                    console.log('Using puzzle number from session storage:', puzzleNumber);
+                }
+            }
 
             if (!puzzleNumber) {
-                console.error('No puzzle number found');
-                reject(new Error('No puzzle number found'));
+                console.error('No valid puzzle number found');
+                reject(new Error('No valid puzzle number found'));
                 return;
             }
 
+            // Store the correct puzzle number immediately
+            this.puzzleNumber = puzzleNumber;
+            sessionStorage.setItem('currentPuzzleNumber', puzzleNumber);
+
             // Construct image path
-            imagePath = `/images/puzzles/puzzle${puzzleNumber}.png`;
+            const imagePath = `/images/puzzles/puzzle${puzzleNumber}.png`;
             console.log('Loading puzzle image:', imagePath);
 
             img.onload = () => {
@@ -570,20 +611,6 @@ class SlidingPuzzle {
 
             img.src = imagePath;
         });
-    }
-
-    getPuzzleNumberFromUrl() {
-        // First try URL
-        const urlMatch = window.location.pathname.match(/puzzle(\d+)\.html/);
-        if (urlMatch) return urlMatch[1];
-
-        // Then try puzzle return URL
-        const returnUrl = sessionStorage.getItem('puzzleReturnUrl');
-        const returnMatch = returnUrl?.match(/puzzle(\d+)\.html/);
-        if (returnMatch) return returnMatch[1];
-
-        // Finally try stored puzzle number
-        return sessionStorage.getItem('puzzleNumber');
     }
 
     setupInitialBoard() {

@@ -64,6 +64,10 @@ class AdminPanel {
 
             // Update player list with stored lobby data
             this.updateAllStatuses();
+
+            // Always create and enable publish/download buttons
+            this.createPublishButton();
+            this.createDownloadButton();
         } catch (error) {
             console.error('Error restoring admin state:', error);
         }
@@ -243,23 +247,19 @@ class AdminPanel {
         }
 
         try {
-            // More robust way to get player name
+            // Get player name before removal for message
             let playerName = 'Unknown Player';
             try {
-                // Try to get from lobby first
                 const lobbyRef = ref(realtimeDb, `lobby/${playerId}`);
                 const lobbySnapshot = await get(lobbyRef);
                 if (lobbySnapshot.exists()) {
                     playerName = lobbySnapshot.val()?.name || 'Unknown Player';
-                } else {
-                    // Try to get from stored names
-                    playerName = this.playerNames?.[playerId] || 'Unknown Player';
                 }
             } catch (error) {
                 console.warn('Could not get player name:', error);
             }
 
-            // Remove each path separately instead of using multi-path update
+            // Remove all player data concurrently
             await Promise.all([
                 // Remove from lobby
                 set(ref(realtimeDb, `lobby/${playerId}`), null),
@@ -267,42 +267,61 @@ class AdminPanel {
                 set(ref(realtimeDb, `puzzleStates/${playerId}`), null),
                 // Remove from players
                 set(ref(realtimeDb, `players/${playerId}`), null),
-                // Set removal flag
-                set(ref(realtimeDb, `playerRemoval/${playerId}`), {
-                    timestamp: Date.now(),
-                    action: 'remove',
-                    removedBy: 'admin'
-                })
+                // Remove from player names
+                set(ref(realtimeDb, `playerNames/${playerId}`), null),
+                // Remove from completions in Firestore
+                deleteDoc(doc(db, 'completions', playerId)),
+                // Remove from active puzzles
+                set(ref(realtimeDb, `activePuzzles/${playerId}`), null),
             ]);
 
-            // Remove from Firestore completions if exists
-            try {
-                const completionDoc = doc(db, 'completions', playerId);
-                await deleteDoc(completionDoc);
-            } catch (error) {
-                console.log('No completion document found for player');
-            }
-
-            // Update total players count in game state
+            // Update game state total players count
             const gameStateRef = ref(realtimeDb, 'gameState');
             const gameStateSnap = await get(gameStateRef);
             if (gameStateSnap.exists()) {
                 const gameState = gameStateSnap.val();
-                if (gameState.totalPlayers > 0) {
-                    await set(ref(realtimeDb, 'gameState/totalPlayers'), gameState.totalPlayers - 1);
-                }
+                const newTotal = Math.max(0, (gameState.totalPlayers || 1) - 1);
+                
+                // Update game state with new total
+                await set(ref(realtimeDb, 'gameState'), {
+                    ...gameState,
+                    totalPlayers: newTotal
+                });
+
+                // Update local state
+                this.totalPlayers = newTotal;
             }
+
+            // Remove from local state
+            if (this.playerNames && this.playerNames[playerId]) {
+                delete this.playerNames[playerId];
+            }
+            if (this.lobbyPlayers && this.lobbyPlayers[playerId]) {
+                delete this.lobbyPlayers[playerId];
+            }
+            if (this.firestoreCompletions && this.firestoreCompletions[playerId]) {
+                delete this.firestoreCompletions[playerId];
+            }
+
+            // Force immediate UI update
+            this.updateAllStatuses();
+
+            // Get current completion count
+            const completionsSnapshot = await getDocs(collection(db, 'completions'));
+            const finishedCount = completionsSnapshot.docs.length;
+            
+            // Update completion counter
+            this.updateCompletionStatus(finishedCount, this.totalPlayers);
 
             // Show success message
             this.showStatusMessage(`Player ${playerName} has been removed`);
 
-            // Update completion counter if needed
-            if (this.totalPlayers > 0) {
-                this.totalPlayers--;
-                const completionsSnapshot = await getDocs(collection(db, 'completions'));
-                const finishedCount = completionsSnapshot.docs.length;
-                this.updateCompletionStatus(finishedCount, this.totalPlayers);
-            }
+            // Set removal flag to trigger client-side redirect
+            await set(ref(realtimeDb, `playerRemoval/${playerId}`), {
+                timestamp: Date.now(),
+                action: 'remove',
+                removedBy: 'admin'
+            });
 
         } catch (error) {
             console.error('Error removing player:', error);
@@ -512,16 +531,11 @@ class AdminPanel {
                 lastUpdate: Date.now()
             }));
 
-            // Enable publish button only when all players have completed
+            // Always enable publish button regardless of completion status
             const publishButton = document.getElementById('publishLeaderboard');
             if (publishButton) {
-                if (finishedCount >= totalPlayers) {
-                    publishButton.disabled = false;
-                    publishButton.classList.add('ready');
-                } else {
-                    publishButton.disabled = true;
-                    publishButton.classList.remove('ready');
-                }
+                publishButton.disabled = false;
+                publishButton.classList.add('ready');
             }
 
             // Show current leaderboard regardless of completion status
@@ -529,12 +543,13 @@ class AdminPanel {
         });
 
         this.unsubscribers.push(unsubscribe);
+
+        // Create publish and download buttons immediately
+        this.createPublishButton();
+        this.createDownloadButton();
     }
 
     async createPublishButton() {
-        // Store publish button state
-        sessionStorage.setItem('adminPublishButtonVisible', 'true');
-        
         const controlPanel = document.querySelector('.control-panel');
         if (!controlPanel) return;
         
@@ -544,9 +559,10 @@ class AdminPanel {
 
         const publishBtn = document.createElement('button');
         publishBtn.id = 'publishLeaderboard';
-        publishBtn.className = 'admin-button';
+        publishBtn.className = 'admin-button ready'; // Always add ready class
         publishBtn.textContent = 'Publish Leaderboard';
         publishBtn.onclick = () => this.publishLeaderboard();
+        publishBtn.disabled = false; // Always enable button
 
         controlPanel.appendChild(publishBtn);
     }
@@ -666,15 +682,20 @@ class AdminPanel {
             const leaderboardId = Date.now().toString();
             
             await this.withRetry(async () => {
-                // Get current results in exact same order
                 const completionsSnapshot = await getDocs(collection(db, 'completions'));
                 const completions = [];
                 
                 completionsSnapshot.forEach(doc => {
                     const data = doc.data();
+                    // Ensure we have valid data for both completed and timeout cases
                     completions.push({
                         id: doc.id,
                         ...data,
+                        name: data.name || 'Unknown',
+                        status: data.status || 'unknown',
+                        // For timeout players, set time to max time limit
+                        time: data.status === 'timeout' ? (5 * 60 * 1000) : (data.time || 5 * 60 * 1000),
+                        moves: data.moves || 0,
                         timestamp: new Date(data.completedAt || Date.now()).getTime(),
                         timeoutProgress: data.timeoutProgress || {
                             tilesCorrect: 0,
@@ -683,60 +704,59 @@ class AdminPanel {
                     });
                 });
 
-                // Use same sorting logic
-                const sortedResults = completions.sort((a, b) => {
-                    if (a.status === 'completed' && b.status === 'completed') {
-                        if (a.time !== b.time) return a.time - b.time;
-                        if (a.moves !== b.moves) return a.moves - b.moves;
-                        return a.timestamp - b.timestamp;
-                    }
-                    if (a.status === 'completed') return -1;
-                    if (b.status === 'completed') return 1;
-
-                    const aTiles = a.timeoutProgress?.tilesCorrect || 0;
-                    const bTiles = b.timeoutProgress?.tilesCorrect || 0;
-                    if (aTiles !== bTiles) return bTiles - aTiles;
-                    if (a.moves !== b.moves) return a.moves - b.moves;
-                    return a.timestamp - b.timestamp;
+                // Prepare realtime database data with validated entries
+                const realtimeData = {};
+                completions.forEach((player) => {
+                    realtimeData[player.id] = {
+                        name: String(player.name || 'Unknown'),
+                        status: String(player.status || 'unknown'),
+                        // Ensure time is always a number
+                        time: player.status === 'completed' ? Number(player.time) : (5 * 60 * 1000),
+                        moves: Number(player.moves || 0),
+                        tilesCompleted: Number(player.timeoutProgress?.tilesCorrect || 0),
+                        totalTiles: 11,
+                        accuracy: player.status === 'completed' ? 100 : 
+                            Math.round(((player.timeoutProgress?.tilesCorrect || 0) / 11) * 100),
+                        points: player.status === 'completed' ? 10 : 
+                            Math.round(((player.timeoutProgress?.tilesCorrect || 0) / 11) * 10)
+                    };
                 });
 
-                // Save to Firestore with rankings
-                const leaderboardData = {
-                    results: sortedResults.map((player, index) => ({
+                // Save to Firestore first
+                const leaderboardDoc = {
+                    results: completions.map((player, index) => ({
                         ...player,
                         rank: index + 1
                     })),
                     publishedAt: new Date().toISOString(),
                     puzzleNumber: this.currentPuzzle?.puzzleNumber,
                     totalPlayers: this.totalPlayers,
-                    completedPlayers: sortedResults.filter(p => p.status === 'completed').length,
-                    timeoutPlayers: sortedResults.filter(p => p.status === 'timeout').length
+                    completedPlayers: completions.filter(p => p.status === 'completed').length,
+                    timeoutPlayers: completions.filter(p => p.status === 'timeout').length
                 };
 
-                await setDoc(doc(db, 'leaderboards', leaderboardId), leaderboardData);
+                await setDoc(doc(db, 'leaderboards', leaderboardId), leaderboardDoc);
 
-                // Update realtime database with same data
-                const realtimeData = {};
-                sortedResults.forEach((player, index) => {
-                    realtimeData[player.id] = {
-                        name: player.name,
-                        rank: index + 1,
-                        status: player.status,
-                        time: player.time,
-                        moves: player.moves,
-                        tilesCompleted: player.timeoutProgress?.tilesCorrect || 0,
-                        totalTiles: 11
-                    };
-                });
-
+                // Then update realtime database
                 await set(ref(realtimeDb, 'leaderboard'), realtimeData);
 
-                // Continue with existing publish logic...
-                // ...existing code...
-            });
+                // Update game state to mark leaderboard as published
+                await set(ref(realtimeDb, 'gameState'), {
+                    leaderboardPublished: true,
+                    leaderboardId: leaderboardId,
+                    completedAt: new Date().toISOString()
+                });
 
-            // Create download button after successful publish
-            this.createDownloadButton();
+                // Signal users to redirect
+                await set(ref(realtimeDb, 'systemState/redirect'), {
+                    timestamp: Date.now(),
+                    destination: 'leaderboard.html'
+                });
+
+                this.showStatusMessage('Leaderboard published! Users will be redirected to the leaderboard page.');
+                this.createDownloadButton();
+
+            });
 
         } catch (error) {
             console.error('Error publishing leaderboard:', error);
@@ -1316,17 +1336,18 @@ document.getElementById('publishLeaderboard').addEventListener('click', async ()
         
         completionsSnapshot.forEach(doc => {
             const completion = doc.data();
+            // Ensure all values are defined with defaults
             const tilesCorrect = completion.status === 'timeout' 
                 ? (completion.timeoutProgress?.tilesCorrect || completion.tilesCorrect || 0)
                 : 11;
 
             const player = {
                 id: doc.id,
-                name: completion.name,
-                status: completion.status,
-                time: completion.time,
+                name: completion.name || 'Unknown',
+                status: completion.status || 'unknown',
+                time: completion.time || 0, // Default to 0 if undefined
                 moves: completion.moves || 0,
-                points: completion.status === 'completed' ? 10 : 0, // Timeout players get 0 points
+                points: completion.status === 'completed' ? 10 : 0,
                 accuracy: completion.status === 'completed' ? 100 : Math.round((tilesCorrect / 11) * 100),
                 timeoutProgress: {
                     tilesCorrect: tilesCorrect,
@@ -1379,19 +1400,30 @@ document.getElementById('publishLeaderboard').addEventListener('click', async ()
 
         // Prepare data for realtime database
         const leaderboardData = rankedPlayers.reduce((acc, player, index) => {
+            // Ensure all properties are defined and of correct type
             acc[player.id] = {
-                name: player.name || 'Unknown',
-                rank: index + 1,
-                status: player.status || 'unknown',
-                time: player.time || 0, // Ensure time is never undefined
-                moves: player.moves || 0,
-                tilesCompleted: player.timeoutProgress?.tilesCorrect || 0,
+                name: String(player.name || 'Unknown'),
+                rank: Number(index + 1),
+                status: String(player.status || 'unknown'),
+                time: Number(player.time || 0),
+                moves: Number(player.moves || 0),
+                tilesCompleted: Number(player.timeoutProgress?.tilesCorrect || 0),
                 totalTiles: 11,
-                accuracy: player.accuracy || 0,
-                points: player.points || 0
+                accuracy: Number(player.accuracy || 0),
+                points: Number(player.points || 0)
             };
             return acc;
         }, {});
+
+        // Validate the entire leaderboard object before setting
+        if (!Object.values(leaderboardData).every(entry => 
+            typeof entry.time === 'number' && 
+            !isNaN(entry.time) && 
+            typeof entry.moves === 'number' && 
+            !isNaN(entry.moves)
+        )) {
+            throw new Error('Invalid leaderboard data detected');
+        }
 
         // Update realtime database
         const leaderboardRef = ref(realtimeDb, 'leaderboard');
