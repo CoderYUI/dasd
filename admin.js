@@ -792,6 +792,8 @@ class AdminPanel {
                 set(ref(realtimeDb, 'activePuzzles'), null),
                 set(ref(realtimeDb, 'puzzles'), null),
                 set(ref(realtimeDb, 'players'), null),
+                set(ref(realtimeDb, 'playerRemoval'), null),
+                set(ref(realtimeDb, 'systemState/redirect'), null),
                 set(ref(realtimeDb, 'gameState/players'), null)
             ]);
 
