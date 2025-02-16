@@ -32,6 +32,7 @@ export default defineConfig({
         waiting: 'waiting.html',
         waiting_leaderboard: 'waiting_leaderboard.html',
         thankyou: 'thankyou.html',
+        present: 'present.html',
         leaderboard: 'leaderboard.html'
       },
       output: {

@@ -352,39 +352,32 @@ h2 {
 }
 
 .theme-switch {
-    background: rgba(0, 0, 0, 0.1);
-    padding: 8px;
-    border-radius: 50%;
+    background: none;
+    border: none;
+    padding: 4px;
     cursor: pointer;
     transition: all 0.3s ease;
-    display: flex;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    margin-right: 0;  /* Add this to push it to the right edge */
-    position: fixed;
-    bottom: 20px; /* Reduced from 100px */
-    right: 20px;
-    z-index: 999; /* Ensure it's above footer */
-    background: #ffb700;
-    width: 45px;
-    height: 45px;
-    border-radius: 50%;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    margin: 0;
+    animation: none;
+    box-shadow: none;
+    vertical-align: middle;
 }
 
 .theme-switch:hover {
-    background: rgba(0, 0, 0, 0.2);
     transform: scale(1.1);
 }
 
 #theme-icon {
     font-size: 1.5rem;
-    color: var(--toggle-color);
+    color: var(--footer-text);
     transition: all 0.3s ease;
 }
 
 .theme-switch:hover #theme-icon {
-    color: var(--toggle-hover);
+    color: var(--footer-accent);
 }
 
 @keyframes rotateIcon {
@@ -657,6 +650,10 @@ h2 {
     max-width: 800px;
     margin: 0 auto;
     text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
 }
 
 .game-info {
@@ -755,7 +752,7 @@ body.dark-theme .nav-logo .logo-dark {
 .footer-logo {
     width: 300px; /* Further reduced from 400px */
     height: 80px; /* Further reduced from 100px */
-    margin: 0.25rem auto 0;
+    margin: 0 auto; /* Center the logo horizontally */
     max-width: 100%;
     position: relative;
 }
@@ -782,6 +779,14 @@ body.dark-theme .footer-logo .logo-light {
 
 body.dark-theme .footer-logo .logo-dark {
     opacity: 1;
+}
+
+.footer-text {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 0; /* Remove bottom margin */
 }
 
 @media (max-width: 768px) {
@@ -968,8 +973,17 @@ body.dark-theme .footer-logo .logo-dark {
     }
 
     .theme-switch {
-        bottom: 90px; /* Position above footer */
-        right: 15px;
+        padding: 4px;
+        margin: 0;
+    }
+
+    #theme-icon {
+        font-size: 1.1rem;
+    }
+
+    .footer-text {
+        gap: 0.25rem;
+        margin-bottom: 0; /* Remove bottom margin on mobile */
     }
 
     .footer {
@@ -1023,6 +1037,7 @@ body.dark-theme .footer-logo .logo-dark {
     .footer-logo {
         height: 100px; /* Even smaller for mobile */
         margin: 0.5rem auto 0;
+        margin: 0 auto; /* Keep logo centered on mobile */
     }
 
     .nav-logo {

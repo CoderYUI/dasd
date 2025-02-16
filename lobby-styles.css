@@ -94,11 +94,44 @@
     min-height: 80vh; /* Set specific height for lobby */
 }
 
+/* Remove or update these theme switch styles */
 .theme-switch {
-    position: fixed;
-    bottom: calc(100vh - 95vh); /* Position relative to lobby height */
-    right: 20px;
-    z-index: 10; /* Lower than modals but above content */
+    /* Remove the fixed positioning styles */
+    position: static;
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    animation: none;
+    box-shadow: none;
+    vertical-align: middle;
+}
+
+.theme-switch:hover {
+    transform: scale(1.1);
+}
+
+#theme-icon {
+    font-size: 1.5rem;
+    color: var(--footer-text);
+    transition: all 0.3s ease;
+}
+
+.theme-switch:hover #theme-icon {
+    color: var(--footer-accent);
+}
+
+.footer-text {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 0;
 }
 
 .profile-section {
@@ -248,6 +281,28 @@
 
     .player-name {
         font-size: 0.8rem;
+    }
+
+    /* Remove the old theme switch positioning */
+    .theme-switch {
+        position: static;
+        padding: 4px;
+        margin: 0;
+    }
+
+    #theme-icon {
+        font-size: 1.1rem;
+    }
+
+    .footer-text {
+        gap: 0.25rem;
+        margin-bottom: 0;
+    }
+
+    .footer-logo {
+        height: 60px;
+        width: 200px;
+        margin: 0 auto;
     }
 
     .theme-switch {
@@ -454,6 +509,28 @@ body.dark-theme .player-item:hover {
     position: relative; /* Change from sticky */
     z-index: 1; /* Lower than lobby content */
     margin-top: 2rem; /* Add space between content and footer */
+}
+
+.footer-content {
+    max-width: 800px;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.footer-text {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 0;
+}
+
+.footer-logo {
+    width: 300px;
+    height: 80px;
+    margin: 0 auto;
+    max-width: 100%;
+    position: relative;
 }
 
 /* Ensure main content area has proper spacing */

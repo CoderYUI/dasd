@@ -915,10 +915,10 @@ class AdminPanel {
         }
     }
 
-    formatTime(time) {
-        const minutes = Math.floor(time / 60000);
-        const seconds = Math.floor((time % 60000) / 1000);
-        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    formatTime(ms) {
+        const minutes = Math.floor(ms / 60000);
+        const seconds = ((ms % 60000) / 1000).toFixed(1);
+        return `${minutes}:${seconds.padStart(4, '0')}`;
     }
 
     // Add proper cleanup

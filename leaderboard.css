@@ -649,6 +649,66 @@ main {
 
 /* ...existing code... */
 
+/* Update theme switch styles */
+.theme-switch {
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0;
+    animation: none;
+    box-shadow: none;
+    vertical-align: middle;
+    position: static;
+}
+
+.theme-switch:hover {
+    transform: scale(1.1);
+}
+
+#theme-icon {
+    font-size: 1.5rem;
+    color: var(--footer-text);
+    transition: all 0.3s ease;
+}
+
+.theme-switch:hover #theme-icon {
+    color: var(--footer-accent);
+}
+
+.footer-text {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 0;
+}
+
+@media (max-width: 768px) {
+    /* ...existing code... */
+
+    .theme-switch {
+        padding: 4px;
+        margin: 0;
+    }
+
+    #theme-icon {
+        font-size: 1.1rem;
+    }
+
+    .footer-text {
+        gap: 0.25rem;
+        margin-bottom: 0;
+    }
+}
+
+/* ...existing code... */
+
+/* Game title styles */
 .game-title {
     display: flex;
     align-items: center;

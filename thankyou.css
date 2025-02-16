@@ -228,25 +228,41 @@ body.dark-theme .rating-group textarea {
 
 /* Theme switch positioning */
 .theme-switch {
-    position: fixed;
-    bottom: 120px;
-    right: 20px;
-    z-index: 100;
-    background: var(--primary-color);
-    width: 45px;
-    height: 45px;
-    border-radius: 50%;
-    display: flex;
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    cursor: pointer;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-    transition: all 0.3s ease;
+    margin: 0;
+    animation: none;
+    box-shadow: none;
+    vertical-align: middle;
+    position: static;
 }
 
 .theme-switch:hover {
     transform: scale(1.1);
-    box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+}
+
+#theme-icon {
+    font-size: 1.5rem;
+    color: var(--footer-text);
+    transition: all 0.3s ease;
+}
+
+.theme-switch:hover #theme-icon {
+    color: var(--footer-accent);
+}
+
+.footer-text {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-bottom: 0;
 }
 
 /* Update nav layout */
@@ -374,10 +390,18 @@ body.dark-theme .advitya-frame:hover .advitya-logo {
     }
 
     .theme-switch {
-        bottom: 100px;
-        right: 15px;
-        width: 40px;
-        height: 40px;
+        padding: 4px;
+        margin: 0;
+        position: static;
+    }
+
+    #theme-icon {
+        font-size: 1.1rem;
+    }
+
+    .footer-text {
+        gap: 0.25rem;
+        margin-bottom: 0;
     }
 
     body {
